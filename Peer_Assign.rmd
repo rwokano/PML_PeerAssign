@@ -112,7 +112,7 @@ accuracyBT<-cmBT$overall['Accuracy']
 - Cleaned the datasets to remove NA values and then remove columms that had all NA values  
 - Partition the training dataset into two halves.  One to train the model, and one to test it's accuracy.  
 - Fit a model to the training data.  I fit two models, one using a random forest and one using a boosted trees alogrithm.  AS part of the fitting, I used a repeated cross validation method to tune the model and avoid over fitting.  
-- Validated the accuracy of the two models, and their out of sample error rates.  While both models were good, the random forest was better at over a 98% accuracy rate.  
+- Validated the accuracy of the two models, and their out of sample error rates.  While both models were good, the random forest was better at over a 99% accuracy rate.  
 - Finally (in step 6 below) use the fitted random forest model to predict the answers of the test dataset which will be submitted to Coursera.
 
 
@@ -144,7 +144,11 @@ print(results)
   Here are the confusion matrices for the two fitted models referenced earlier in the text.  
   
  - Boosted Trees  
-`r cmBT`  
+```{r}
+cmBT
+```
 
 - Random Forest  
-`r cmRF`
+```{r}
+cmRF
+```
