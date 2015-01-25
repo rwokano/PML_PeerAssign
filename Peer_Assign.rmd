@@ -36,6 +36,9 @@ throwing the hips to the front (Class E)
   I will begin be loading the dataset. First set the working directory, then use read.csv with the approprate na.strings option set to fill in *NA* for the values that are not meaningful. After exploring the data, I chose to use NA, a blank, and a #DIV/0! string as the NA values.
 ```{r Load_Data}
 setwd("~/Coursera/Data Scientist/8 - Practical Machine Learning/Peer_Assign")
+## load Knitr, and set the caching option in case of re-runs
+library(knitr)
+opts_chunk$set(echo=TRUE, cache=TRUE)
 trainData<-read.csv("./data/pml-training.csv",na.strings=c("NA","","#DIV/0!"))
 testData<-read.csv("./data/pml-testing.csv",na.strings=c("NA","","#DIV/0!"))
 
@@ -85,9 +88,9 @@ fitControl <- trainControl(## 10-fold CV
                            ## repeated ten times
                            repeats = 10)
 ## Random Forest
-modelFitRF<-train(classe~.,method='rf',data=training, trcontrol=fitControl)
+modelFitRF<-train(classe~.,method='rf',data=training, trControl=fitControl)
 ## Boosted Tree (slide 8/12)
-modelFitBT<-train(classe~.,method='gbm',data=training, trcontrol=fitcontrol, verbose=FALSE)
+modelFitBT<-train(classe~.,method='gbm',data=training, trControl=fitControl, verbose=FALSE)
 ```
 ####Step 5 - Validate the Accuracy of the Model
   Using the two models developed above *modelFitRF* and *modelFitBT* I will use the *predict* function to determine the accuracy of the model by putting the predictions into a *confusionMatrix* and extracting the accuracy.
@@ -108,13 +111,13 @@ accuracyBT<-cmBT$overall['Accuracy']
 - how to load the training and testing dasets provided  
 - Cleaned the datasets to remove NA values and then remove columms that had all NA values  
 - Partition the training dataset into two halves.  One to train the model, and one to test it's accuracy.  
-- Fit a model to the training data.  I fit two models, one using a random forest and one using a boosted trees alogrithm.  AS part of the fitting, I used a repeated cross validation method to tune the model and avoid over fitting.
-- Validated the accuracy of the two models, and their out of sample error rates.  While both models were good, the random forest was better at over a 99% accuracy rate.  
+- Fit a model to the training data.  I fit two models, one using a random forest and one using a boosted trees alogrithm.  AS part of the fitting, I used a repeated cross validation method to tune the model and avoid over fitting.  
+- Validated the accuracy of the two models, and their out of sample error rates.  While both models were good, the random forest was better at over a 98% accuracy rate.  
 - Finally (in step 6 below) use the fitted random forest model to predict the answers of the test dataset which will be submitted to Coursera.
 
 
 ####Step 6 - Process the Test data
-  As the lest step, use the *testData* file that I read in with the training dataset and cleaned the same way.  With the testData file, run the prediction model, and then call the given function to write the results into separate files.
+  As the lest step, use the *testData* file that I read in with the training dataset and cleaned the same way.  With the testData file, run the prediction model, and then call the given function to write the results into separate files.  As one last step, I will display the answers that were written to the files here in the text.
 ```{r Test_Data} 
 ## given function
 pml_write_files = function(x){
@@ -131,11 +134,17 @@ testPredict<-predict(modelFitRF,testData)
 results<-as.vector(testPredict)
 setwd("./answers")
 pml_write_files(results)
+
+setwd("./..")
+## Show the answers for here in the text
+print(results)
+
 ```
 #### Appendix
   Here are the confusion matrices for the two fitted models referenced earlier in the text.  
+  
  - Boosted Trees  
-`r print(cmBT)`  
+`r cmBT`  
 
 - Random Forest  
-`r print(cmRF)`
+`r cmRF`
