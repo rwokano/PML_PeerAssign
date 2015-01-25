@@ -1,0 +1,141 @@
+---
+title: "PML Peer Assignment"
+author: "rwokano"
+date: "Friday, January 23, 2015"
+output: html_document
+---
+
+##Introduction  
+  The *Practical Machine Learning* course deals with the ability to build an algorithm from a set of known data (called training data). Ths algorithm is then tested on a separate set of data (called the Test Data) where the outcome is known so the algorithm can be tested for accuracy.  Finally, the algorithm can be used on unknown data with some level of confidence surrounding the algorithms predictions.  This general method is what I will follow in this assignment.  
+  
+- First, I will load the data.  
+- Explore and Clean the data.   
+- Partition the data into a Train / Test set from the Training data given.  
+- Build the model  
+- Using the test data that I partitioned above, validate the accuracy of the model.  
+- FInally, use the model to predict results in the Test dataset.
+  
+###Problem Description
+ From the Assignment - 
+```
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).  
+```
+I am to build an algorithm which will be able to predict the *Classe* of error that was found in the excersizes.  The *Classe* is a factor as described in the paper on the website mentioned above as 
+```
+ Participants were asked to perform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in five different fashions: 
+ 
+exactly according to the specication (Class A)   
+throwing the elbows to the front (Class B)   
+lifting the dumbbell only halfway (Class C)   
+lowering the dumbbell only halfway (Class D)   
+throwing the hips to the front (Class E)
+
+*Class A corresponds to the specified execution of the exercise, while the other 4 classes correspond to common mistakes. Participants were supervised by an experienced weight lifter to make sure the execution complied to the manner they were supposed to simulate. The exercises were performed by six male participants aged between 20-28 years, with little weight lifting experience.*
+```
+####Step 1 - Loading the data
+  I will begin be loading the dataset. First set the working directory, then use read.csv with the approprate na.strings option set to fill in *NA* for the values that are not meaningful. After exploring the data, I chose to use NA, a blank, and a #DIV/0! string as the NA values.
+```{r Load_Data}
+setwd("~/Coursera/Data Scientist/8 - Practical Machine Learning/Peer_Assign")
+trainData<-read.csv("./data/pml-training.csv",na.strings=c("NA","","#DIV/0!"))
+testData<-read.csv("./data/pml-testing.csv",na.strings=c("NA","","#DIV/0!"))
+
+```
+####Step 2 - Clean the data
+  By observing the data, it appears that the first 7 columns have little meaning to the excersize.  These columns  
+  
+- X  
+- username
+- raw_timestamp_part_1
+- raw_timestamp_part_2
+- cvtd_timestamp
+- new_window  
+- num_window
+
+can all be eliminated.  There are also columns which contain all NA's.  This will create an error when building the model with the TRAIN function, so these columns need to be cleaned out now. One other observation is that the *Classe* column is not defined as a Factor, so convert that over as well.
+```{r Clean_Data}
+trainData<-trainData[,!colnames(trainData) %in% c("X","user_name","raw_timestamp_part_1","raw_timestamp_part_2","cvtd_timestamp","new_window", "num_window")]
+testData<-testData[,!colnames(testData) %in% c("X","user_name","raw_timestamp_part_1","raw_timestamp_part_2","cvtd_timestamp","new_window", "num_window")]
+trainNAs<-apply(trainData,2,function(x) {sum(is.na(x))})
+testNAs<-apply(testData,2,function(x) {sum(is.na(x))})
+trainData<-trainData[,which(trainNAs == 0)]
+testData<-testData[,which(testNAs == 0)]
+trainData$classe<-as.factor(trainData$classe)
+```
+####Step 3 Partition the Data
+  As we have seen in class, it is necessary to break the data with known results into two separate pieces. A training set, and a testing set which can be used for validation.  Using the caret package, I will partition the data in the TRAINING dataset into 2 with 70% going to the dataset that will be used to train the model.
+```{r Partition_Data}
+library(caret)
+testIndex = createDataPartition(trainData$classe, p = 0.70,list=FALSE)
+training = trainData[testIndex,]
+testing = trainData[-testIndex,]
+```
+####Step 4 - Build the Model
+  We have studied several different models in the class.  Most recently, Random Forests.  In the lecture notes, it is commented on the last slide of the Random Forests lecture that the two most accurate methods are Random Forets and Boosted Trees.  With that in mind go ahead and build a model for both of those and then I'll take a look at the confusion Matrix to see which is is worth pursuing further. It is noted in the slides as well that these can be slow to run but since we have a fairly limited number of rows, though there are a lot of columns, I'm going to run them anyway. After the first run, it was obvious this is VERY slow, but CPU at only 27%. Researched on web and found the Revolution R package doParallel which boosted CPU performace to 77% when I allocated 3 cores. So, let's get started and load the random forest library and train a model using the *training* data that we just partitioned above.  
+  As we fit the model, it is important to set the cross validation paramters to avoid *over fitting* the model.  The method I have chose was taken from here ( http://topepo.github.io/caret/training.html) which uses the *repeatedcv* train control option. 
+  `NOTE:` Be sure to set a seed here so that the results can be reproduced.
+```{r Build_Model}
+set.seed(32767)
+library(doParallel)
+cl <- makeCluster(3)  ##My computer has 4 cores, so set to use 3
+registerDoParallel(cl)
+## set the train control options
+fitControl <- trainControl(## 10-fold CV
+                           method = "repeatedcv",
+                           number = 10,
+                           ## repeated ten times
+                           repeats = 10)
+## Random Forest
+modelFitRF<-train(classe~.,method='rf',data=training, trcontrol=fitControl)
+## Boosted Tree (slide 8/12)
+modelFitBT<-train(classe~.,method='gbm',data=training, trcontrol=fitcontrol, verbose=FALSE)
+```
+####Step 5 - Validate the Accuracy of the Model
+  Using the two models developed above *modelFitRF* and *modelFitBT* I will use the *predict* function to determine the accuracy of the model by putting the predictions into a *confusionMatrix* and extracting the accuracy.
+```{r Validate_Accuracy}
+predictRF<-predict(modelFitRF,testing)
+cmRF<-confusionMatrix(predictRF,testing$classe)
+predictBT<-predict(modelFitBT,testing)
+cmBT<-confusionMatrix(predictBT,testing$classe)
+accuracyRF<-cmRF$overall['Accuracy']
+accuracyBT<-cmBT$overall['Accuracy']
+```
+  From the code above, it can be determined that the accuracy of the *boosted trees* model is `r accuracyBT` and the *random forest* model produces an accuracy of `r accuracyRF`.  (The actual confusion matrices generated above will be shown in the appendix rather then here in the text.)  
+  The accuracy shown above from the *confusionMatrix* shows how well the models performed against the know set of results. To determine an out of sample error, it would simply be 1 - the accuracy.  Therefore, the out of sample error for the *boosted trees* model is `r 1-accuracyBT` and the out of sample error for the *random forest* model is `r 1- accuracyRF`  
+  With the accuracy at better than 99% for the *random forest* model, I will proceed to process the test data with that model.  While the boosted trees model is turning in an accuracy of better than 95% (which is still great!) the random forest is working better for this dataset.
+
+####Conclusion
+  As a wrap-up, I have demonstarted:  
+- how to load the training and testing dasets provided  
+- Cleaned the datasets to remove NA values and then remove columms that had all NA values  
+- Partition the training dataset into two halves.  One to train the model, and one to test it's accuracy.  
+- Fit a model to the training data.  I fit two models, one using a random forest and one using a boosted trees alogrithm.  AS part of the fitting, I used a repeated cross validation method to tune the model and avoid over fitting.
+- Validated the accuracy of the two models, and their out of sample error rates.  While both models were good, the random forest was better at over a 99% accuracy rate.  
+- Finally (in step 6 below) use the fitted random forest model to predict the answers of the test dataset which will be submitted to Coursera.
+
+
+####Step 6 - Process the Test data
+  As the lest step, use the *testData* file that I read in with the training dataset and cleaned the same way.  With the testData file, run the prediction model, and then call the given function to write the results into separate files.
+```{r Test_Data} 
+## given function
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+## process the test data
+testPredict<-predict(modelFitRF,testData)
+## assignment says function requores vector, so convert it
+results<-as.vector(testPredict)
+setwd("./answers")
+pml_write_files(results)
+```
+#### Appendix
+  Here are the confusion matrices for the two fitted models referenced earlier in the text.  
+ - Boosted Trees  
+`r print(cmBT)`  
+
+- Random Forest  
+`r print(cmRF)`
